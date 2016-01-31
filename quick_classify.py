@@ -3,17 +3,40 @@ import matplotlib.pyplot as pyplot
 import os
 import sys
 
-class ImageClassifierGUI():
-    def __init__(self, key_to_dir, files):
-        self.image_itr = files.__iter__()
-        self.current_image = self.image_itr.next()
+
+class ImageShower(object):
+    def __init__(self):
+        self.current_image = ''
 
         self.fig, self.ax = pyplot.subplots()
 
+    def update(self, path):
+        '''
+        :param path: To image
+        '''
+
+        img = mpimg.imread(path)
+
+        # First time
+        if not self.current_image:
+            self.img_plot = pyplot.imshow(img)
+        else:
+            self.img_plot.set_data(img)
+        self.current_image = path
+
+        self.fig.suptitle(self.current_image)
+        pyplot.draw()
+
+
+class ImageClassifierGUI(ImageShower):
+    def __init__(self, files, key_to_dir):
+        super(ImageClassifierGUI, self).__init__()
+
+        self.image_itr = files.__iter__()
+        self.update(self.image_itr.next())
+
         self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
-        img = mpimg.imread(self.current_image)
-        self.img_plot = pyplot.imshow(img)
-        pyplot.show()
+
 
     def handle_keypress(self, event):
         if event.key == 'delete':
@@ -40,19 +63,13 @@ class ImageClassifierGUI():
         # Move to next image (do-while kludge)
         while True:
             try:
-                self.current_image = self.image_itr.next()
+                self.update(self.image_itr.next())
+                break
             except StopIteration:
                 print 'Done'
                 sys.exit()
-
-            self.fig.suptitle(self.current_image)
-            img = mpimg.imread(self.current_image)
-            self.img_plot.set_data(img)
-
-            pyplot.draw()
-
-            if os.path.exists(self.current_image):
-                break
+            except (OSError, IOError):
+                continue
 
 if __name__ == '__main__':
     dirs = sys.argv[1].split(',')
@@ -80,4 +97,6 @@ if __name__ == '__main__':
     print
     # raw_input('Hit enter to continue')
 
-    gui = ImageClassifierGUI(key, files)
+    gui = ImageClassifierGUI(files, key_to_dir)
+
+    pyplot.show()

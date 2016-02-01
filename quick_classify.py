@@ -1,5 +1,7 @@
+import cv2
 import matplotlib.image as mpimg
 import matplotlib.pyplot as pyplot
+import numpy as np
 import os
 import sys
 
@@ -10,7 +12,7 @@ class ImageShower(object):
 
         self.fig, self.ax = pyplot.subplots()
 
-    def update(self, path):
+    def update(self, path, subtitle=''):
         '''
         :param path: To image
         '''
@@ -24,8 +26,35 @@ class ImageShower(object):
             self.img_plot.set_data(img)
         self.current_image = path
 
+        self.ax.set_title(subtitle)
         self.fig.suptitle(self.current_image)
         pyplot.draw()
+
+
+class SlideShow(ImageShower):
+    def __init__(self, images, subtitles=None):
+        super(SlideShow, self).__init__()
+
+        self.images = images
+        if subtitles is None:
+            self.subtitles = np.full(len(images), '')
+        else:
+            self.subtitles = subtitles
+        self.i_current = 0
+
+        self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
+
+        self.update(images[0], subtitle=subtitles[0])
+
+    def handle_keypress(self, event):
+        if event.key == 'right':
+            self.i_current = min(self.i_current + 1, len(self.images) - 1)
+        elif event.key == 'left':
+            self.i_current = max(0, self.i_current - 1)
+        else:
+            return
+
+        self.update(self.images[self.i_current], self.subtitles[self.i_current])
 
 
 class ImageClassifierGUI(ImageShower):
@@ -36,7 +65,6 @@ class ImageClassifierGUI(ImageShower):
         self.update(self.image_itr.next())
 
         self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
-
 
     def handle_keypress(self, event):
         if event.key == 'delete':

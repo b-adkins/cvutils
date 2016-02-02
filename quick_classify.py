@@ -4,6 +4,7 @@ import matplotlib.pyplot as pyplot
 import matplotlib.patches
 import numpy as np
 import os
+import PIL.Image
 import sys
 
 
@@ -72,11 +73,7 @@ class ImageClassifier(ImageShower):
 
     def handle_keypress(self, event):
         if event.key == 'delete':
-            try:
-                os.remove(self.current_file)
-                self.ax.set_title('Deleted {}'.format(self.current_file))
-            except OSError as e:
-                self.ax.set_title('Unable to deleted {}:\n{}'.format(self.current_file, e))
+            self.delete_image()
         elif event.key == ' ':
             self.ax.set_title('Skipped')
         else:
@@ -92,14 +89,23 @@ class ImageClassifier(ImageShower):
             except OSError as e:
                 self.ax.set_title('Unable to move {}:\n{}'.format(self.current_file, e))
 
-        # Move to next image (do-while kludge)
+        self.next_image()
+
+    def delete_image(self):
+        try:
+            os.remove(self.current_file)
+            self.ax.set_title('Deleted {}'.format(self.current_file))
+        except OSError as e:
+            self.ax.set_title('Unable to deleted {}:\n{}'.format(self.current_file, e))
+
+    def next_image(self):
         while True:
             try:
                 self.update(self.image_itr.next())
                 break
             except StopIteration:
                 print 'Done'
-                sys.exit()
+                sys.exit()  # @todo Figure out a more elegant way to end the Figure
             except (OSError, IOError):
                 continue
 
@@ -136,8 +142,30 @@ class ImageTagger(ImageClassifier):
                 return rect
             return None
 
-    def handle_keypress(self, event):
+    def save_rectangles(self):
+        for i, rect in enumerate(self.rects):
+            x, y = rect.get_xy()
+            width = rect.get_width()
+            height = rect.get_height()
 
+            # Crop each rectangle's image
+            img_array = self.img[y:y+height, x:x+width]
+            img_array = (img_array*255).astype(np.uint8)  # Convert from 0.0 to 1.0 to 0 to 255
+
+            # Create output path
+            file, ext = os.path.splitext(self.current_file)
+            ext = ext[1:]  # Remove the leading '.'
+            dir = self.color_to_dir[self.rect_colors[rect]]  # @todo Egads what a mess
+            outfile = "{}_{}.{}".format(file, i, ext)
+            outpath = os.path.join(dir, outfile)
+
+            # Save
+            img_obj = PIL.Image.fromarray(img_array)
+            img_obj.save(outpath, format=ext)
+
+    def handle_keypress(self, event):
+        if event.key == 'enter':
+            self.save_rectangles()
 
     def handle_mouse_press(self, event):
         if event.button == 1:

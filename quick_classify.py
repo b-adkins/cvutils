@@ -66,6 +66,8 @@ class ImageClassifier(ImageShower):
         self.image_itr = files.__iter__()
         self.update(self.image_itr.next())
 
+        self.key_to_dir = key_to_dir
+
         self.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
 
     def handle_keypress(self, event):
@@ -79,7 +81,7 @@ class ImageClassifier(ImageShower):
             self.ax.set_title('Skipped')
         else:
             try:
-                dest_dir = key_to_dir[event.key]
+                dest_dir = self.key_to_dir[event.key]
             except KeyError:
                 self.ax.set_title('')
                 print
@@ -111,11 +113,12 @@ class ImageTagger(ImageClassifier):
         self.fig.canvas.mpl_connect('scroll_event', self.handle_scroll_wheel)
         self.rect_being_dragged = False
 
-        self.colors = ['r', 'g', 'b', 'm']  # Color choices for rectangles
+        self.colors = ['r', 'g', 'b', 'm', 'y', 'c', 'teal']  # Color choices for rectangles
 
         self.sizes = [[64, 128]]  # Possible rectangle sizes
         self.rects = []  # Tagged rectangles
         self.rect_colors = {}  # Matplotlib Patch has no "get_color()"; thus must be tracked separately
+        self.color_to_dir = {color: dir for dir, color in zip(self.key_to_dir.values(), self.colors)}
 
 
     def get_rect_at(self, x, y):
@@ -132,6 +135,9 @@ class ImageTagger(ImageClassifier):
             if (x_rect <= x < x_rect + width) and (y_rect <= y < y_rect + height):
                 return rect
             return None
+
+    def handle_keypress(self, event):
+
 
     def handle_mouse_press(self, event):
         if event.button == 1:
@@ -158,9 +164,9 @@ class ImageTagger(ImageClassifier):
             print 'old color:', old_color
             i = self.colors.index(old_color)
             if event.button == 'up':
-                i = (i + 1) % len(self.colors)
+                i = (i + 1) % len(self.color_to_dir)
             elif event.button == 'down':  # Else should suffice, but... defensive programming
-                i = (i - 1 + len(self.colors)) % len(self.colors)
+                i = (i - 1 + len(self.color_to_dir)) % len(self.color_to_dir)
             new_color = self.colors[i]
             rect.set_color(new_color)
             self.rect_colors[rect] = new_color

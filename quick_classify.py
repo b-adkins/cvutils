@@ -105,51 +105,89 @@ class ImageTagger(ImageClassifier):
     def __init__(self, files, key_to_dir):
         super(ImageTagger, self).__init__(files, key_to_dir)
 
-        self.fig.canvas.mpl_connect('button_press_event', self.handle_click)
+        self.fig.canvas.mpl_connect('button_press_event', self.handle_mouse_press)
+        self.fig.canvas.mpl_connect('button_release_event', self.handle_mouse_release)
+        self.fig.canvas.mpl_connect('motion_notify_event', self.handle_mouse_motion)
+        self.rect_being_dragged = False
 
         self.sizes = [[64, 128]]  # Possible rectangle sizes
         self.rects = []  # Tagged rectangles
 
-    def handle_click(self, event):
+
+    def get_rect_at(self, x, y):
+        '''
+        Gets a rectangle at the given (x, y)
+        :param x: X-coordinate, relative to image.
+        :param y: Y-coordinate, relative to image.
+        :return: A rectangle (first in the list) or None.
+        '''
+        for rect in self.rects:
+            x_rect, y_rect = rect.get_xy()
+            width = rect.get_width()
+            height = rect.get_height()
+            if (x_rect <= x < x_rect + width) and (y_rect <= y < y_rect + height):
+                return rect
+            return None
+
+    def handle_mouse_press(self, event):
+        if event.button == 1:
+            clicked_rect = self.get_rect_at(event.xdata, event.ydata)
+            if clicked_rect:
+                print "Dragging rect:", self.rect_being_dragged
+                self.rect_being_dragged = clicked_rect
+
+    def handle_mouse_motion(self, event):
+        if self.rect_being_dragged:
+            print (event.xdata, event.ydata), self.rect_being_dragged
+            self.rect_being_dragged.set_xy((event.xdata, event.ydata))
+            pyplot.draw()
+
+    def handle_mouse_release(self, event):
+        print 'Mouse release:', event
         y_max, x_max, _ = self.img.shape
 
-        print event
-        for rect in self.rects:
-             x_rect, y_rect = rect.get_xy()
-             width = rect.get_width()
-             height = rect.get_height()
-             if (x_rect <= event.xdata < x_rect + width) and (y_rect <= event.ydata < y_rect + height):
-                # Is in rectangle
+        print 'rect being dragged:', self.rect_being_dragged
+        if self.rect_being_dragged:
+            if event.button == 1:
+                self.rect_being_dragged = False
+            else:
+                # While dragging, don't register any clicks except releasing the left button
+                return
+        else:
+            clicked_rect = self.get_rect_at(event.xdata, event.ydata)
+            if clicked_rect:
+                # Is in a rectangle
                 if event.button == 3:
-                    # Remove on right click
-                    rect.remove()  # Remove from the plot
-                    self.rects.remove(rect)  # Remove from the list
+                    # Remove on right click (if not being dragged)
+                    clicked_rect.remove()  # Remove from the plot
+                    self.rects.remove(clicked_rect)  # Remove from the list
                     pyplot.draw()
                     return
-                else:
-                    rect.set_edgecolor('g')
-                    pyplot.draw()
-                    return
+                # elif event.button == 1:
+                #     clicked_rect.set_edgecolor('g')
+                #     pyplot.draw()
+                #     return
 
-        size = self.sizes[0]
-        xy = [event.xdata - size[0]/2, event.ydata - size[1]/2]
+            elif event.button == 1:
+            # Nothing being dragged and left mouse; thus left click. Create new rectangle
+                size = self.sizes[0]
+                xy = [event.xdata - size[0]/2, event.ydata - size[1]/2]
 
-        # Keep in bounds
-        if xy[0] < 0:
-            xy[0] = 0
-        elif xy[0] + size[0] > x_max:
-            xy[0] = x_max - size[0]
+                # Keep in bounds
+                if xy[0] < 0:
+                    xy[0] = 0
+                elif xy[0] + size[0] > x_max:
+                    xy[0] = x_max - size[0]
 
-        if xy[1] < 0:
-            xy[1] = 0
-        elif xy[1] + size[1] > y_max:
-            xy[1] = y_max - size[1]
+                if xy[1] < 0:
+                    xy[1] = 0
+                elif xy[1] + size[1] > y_max:
+                    xy[1] = y_max - size[1]
 
-        rect = matplotlib.patches.Rectangle(xy, size[0], size[1], fill=False)
-        self.rects.append(rect)
-        self.ax.add_patch(rect)
-
-        pyplot.draw()
+                new_rect = matplotlib.patches.Rectangle(xy, size[0], size[1], fill=False)
+                self.rects.append(new_rect)
+                self.ax.add_patch(new_rect)
+                pyplot.draw()
 
 
 # if __name__ == '__main__':

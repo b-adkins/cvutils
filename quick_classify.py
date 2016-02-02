@@ -108,10 +108,14 @@ class ImageTagger(ImageClassifier):
         self.fig.canvas.mpl_connect('button_press_event', self.handle_mouse_press)
         self.fig.canvas.mpl_connect('button_release_event', self.handle_mouse_release)
         self.fig.canvas.mpl_connect('motion_notify_event', self.handle_mouse_motion)
+        self.fig.canvas.mpl_connect('scroll_event', self.handle_scroll_wheel)
         self.rect_being_dragged = False
+
+        self.colors = ['r', 'g', 'b', 'm']  # Color choices for rectangles
 
         self.sizes = [[64, 128]]  # Possible rectangle sizes
         self.rects = []  # Tagged rectangles
+        self.rect_colors = {}  # Matplotlib Patch has no "get_color()"; thus must be tracked separately
 
 
     def get_rect_at(self, x, y):
@@ -140,6 +144,27 @@ class ImageTagger(ImageClassifier):
         if self.rect_being_dragged:
             print (event.xdata, event.ydata), self.rect_being_dragged
             self.rect_being_dragged.set_xy((event.xdata, event.ydata))
+            pyplot.draw()
+
+    def handle_scroll_wheel(self, event):
+        print 'Scroll event:', event
+        if self.rect_being_dragged:
+            rect = self.rect_being_dragged
+        else:
+            rect = self.get_rect_at(event.xdata, event.ydata)
+
+        if rect:
+            old_color = self.rect_colors[rect]
+            print 'old color:', old_color
+            i = self.colors.index(old_color)
+            if event.button == 'up':
+                i = (i + 1) % len(self.colors)
+            elif event.button == 'down':  # Else should suffice, but... defensive programming
+                i = (i - 1 + len(self.colors)) % len(self.colors)
+            new_color = self.colors[i]
+            rect.set_color(new_color)
+            self.rect_colors[rect] = new_color
+            print 'new color:', self.colors[i]
             pyplot.draw()
 
     def handle_mouse_release(self, event):
@@ -184,8 +209,10 @@ class ImageTagger(ImageClassifier):
                 elif xy[1] + size[1] > y_max:
                     xy[1] = y_max - size[1]
 
-                new_rect = matplotlib.patches.Rectangle(xy, size[0], size[1], fill=False)
+                color = self.colors[0]
+                new_rect = matplotlib.patches.Rectangle(xy, size[0], size[1], fill=False, color=color, linewidth='3')
                 self.rects.append(new_rect)
+                self.rect_colors[new_rect] = color
                 self.ax.add_patch(new_rect)
                 pyplot.draw()
 

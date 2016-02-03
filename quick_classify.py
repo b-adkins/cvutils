@@ -1,4 +1,4 @@
-import cv2
+import collections
 import matplotlib.image as mpimg
 import matplotlib.pyplot as pyplot
 import matplotlib.patches
@@ -81,7 +81,6 @@ class ImageClassifier(ImageShower):
                 dest_dir = self.key_to_dir[event.key]
             except KeyError:
                 self.ax.set_title('')
-                print
                 return
             try:
                 os.rename(self.current_file, os.path.join(dest_dir, self.current_file))
@@ -119,7 +118,7 @@ class ImageTagger(ImageClassifier):
         self.fig.canvas.mpl_connect('scroll_event', self.handle_scroll_wheel)
         self.rect_being_dragged = False
 
-        self.colors = ['r', 'g', 'b', 'm', 'y', 'c', 'teal']  # Color choices for rectangles
+        self.colors = ['b', 'purple', 'r', 'g', 'y', 'c', 'teal']  # Color choices for rectangles
 
         self.sizes = [[64, 128]]  # Possible rectangle sizes
         self.rects = []  # Tagged rectangles
@@ -140,9 +139,10 @@ class ImageTagger(ImageClassifier):
             height = rect.get_height()
             if (x_rect <= x < x_rect + width) and (y_rect <= y < y_rect + height):
                 return rect
-            return None
+        return None
 
     def save_rectangles(self):
+        outfiles = []
         for i, rect in enumerate(self.rects):
             x, y = rect.get_xy()
             width = rect.get_width()
@@ -163,25 +163,38 @@ class ImageTagger(ImageClassifier):
             img_obj = PIL.Image.fromarray(img_array)
             img_obj.save(outpath, format=ext)
 
+            outfiles.append(outfile)
+        self.ax.set_title('Saved {}'.format(outfiles))
+
+    def clear_rectangles(self):
+        self.rect_colors = {}
+        for i in range(len(self.rects))[::-1]:
+            self.rects[i].remove()
+            del self.rects[i]
+
+    def next_image(self):
+        self.clear_rectangles()
+        super(ImageTagger, self).next_image()
+
     def handle_keypress(self, event):
         if event.key == 'enter':
             self.save_rectangles()
+            self.next_image()
+        elif event.key in [' ', 'pagedown']:
+            self.next_image()
 
     def handle_mouse_press(self, event):
         if event.button == 1:
             clicked_rect = self.get_rect_at(event.xdata, event.ydata)
             if clicked_rect:
-                print "Dragging rect:", self.rect_being_dragged
                 self.rect_being_dragged = clicked_rect
 
     def handle_mouse_motion(self, event):
         if self.rect_being_dragged:
-            print (event.xdata, event.ydata), self.rect_being_dragged
             self.rect_being_dragged.set_xy((event.xdata, event.ydata))
             pyplot.draw()
 
     def handle_scroll_wheel(self, event):
-        print 'Scroll event:', event
         if self.rect_being_dragged:
             rect = self.rect_being_dragged
         else:
@@ -204,8 +217,9 @@ class ImageTagger(ImageClassifier):
     def handle_mouse_release(self, event):
         print 'Mouse release:', event
         y_max, x_max, _ = self.img.shape
+        if event.xdata is None or event.ydata is None:
+            return
 
-        print 'rect being dragged:', self.rect_being_dragged
         if self.rect_being_dragged:
             if event.button == 1:
                 self.rect_being_dragged = False
@@ -284,7 +298,7 @@ class ImageTagger(ImageClassifier):
 if __name__ == '__main__':
     dirs = sys.argv[1].split(',')
     keys = ['right', 'left', 'up', 'down']
-    key_to_dir = {}
+    key_to_dir = collections.OrderedDict({})
     for key, dir in zip(keys, dirs):
         key_to_dir[key] = dir
     if len(sys.argv) > 2:

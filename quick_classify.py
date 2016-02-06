@@ -192,6 +192,8 @@ class ImageTagger(ImageClassifier):
         self.ax.set_title('Saved {}'.format(outfiles))
 
     def clear_rectangles(self):
+        os.rename(self.current_file, os.path.join('tagged', self.current_file))  # Mark tagged or skipped files "done"
+
         self.rect_colors = {}
         for i in range(len(self.rects))[::-1]:
             self.rects[i].remove()
@@ -299,9 +301,9 @@ class ImageDragTagger(ImageTagger):
         :param margin:
         :return:
         '''
-        super(ImageDragTagger, self).__init__(files,key_to_dir)
+        super(ImageDragTagger, self).__init__(files, key_to_dir)
 
-        self.pct_margin = 0.25  # 16px out of 64x128 in the original HOG paper
+        self.pct_margin = (0.25, 0.125)  # 16px out of 64x128 in the original HOG paper
 
         self.aspect_ratio = float(self.sizes[0][0])/float(self.sizes[0][1])
         self.is_sizing_rect = False
@@ -318,9 +320,12 @@ class ImageDragTagger(ImageTagger):
                 # Or fancy patch box?
                 self.x0, self.y0 = event.xdata, event.ydata  # Where the drag was started
                 self.rect_corner = (self.x0, self.y0)  # Offset the rectangle slightly
-                self.sizing_line = mlines.Line2D(self.x0 + np.array([0, ep]), self.y0 + np.array([0, ep]), lw=4)
+                self.sizing_line = mlines.Line2D(self.x0 + np.array([0, ep]), self.y0 + np.array([0, ep]), lw=4,
+                                                 color=self.colors[0])
                 self.sizing_circle = mpatches.Circle((self.x0, self.y0), ep, **self.rect_options)
                 self.rect_being_created = mpatches.Rectangle((self.x0, self.y0), ep, ep, **self.rect_options)
+                self.rect_colors[self.rect_being_created] = self.colors[0]
+
                 self.rects.append(self.rect_being_created)  # As its being made, it can be removed or changed category=
                 self.ax.add_patch(self.rect_being_created)
                 self.ax.add_patch(self.sizing_circle)
@@ -337,11 +342,19 @@ class ImageDragTagger(ImageTagger):
             h = y_mouse - self.y0
             w = int(np.abs(h)*self.aspect_ratio)
 
-            self.rect_being_created.set_x(self.x0 - w/2)  # Recenter the top
+            # Scale the margin and circle
+            # m_w = self.pct_margin[0]*w
+            m_h = self.pct_margin[1]*h
+            r = w * self.pct_margin[0] / 2
+
+            # Recenter the top
+            self.rect_being_created.set_x(self.x0 - w/2)
+            self.rect_being_created.set_y(self.y0 - m_h)
             self.rect_being_created.set_width(w)
             self.rect_being_created.set_height(h)
-            self.sizing_circle.set_radius(w * self.pct_margin / 2)
-            self.sizing_line.set_ydata([self.y0, y_mouse])
+            self.sizing_circle.center = self.x0, self.y0 + r
+            self.sizing_circle.set_radius(r)
+            self.sizing_line.set_ydata([self.y0 + 2*r, y_mouse - 2*m_h])
             pyplot.draw()
         else:
             super(ImageDragTagger, self).handle_mouse_motion(event)
@@ -353,70 +366,14 @@ class ImageDragTagger(ImageTagger):
                 self.sizing_line.remove()
                 self.sizing_circle.remove()
                 pyplot.draw()
-            return  # Avoids creating new rectangles in parent method
+            if not self.rect_being_dragged or event.button == 3:
+                return  # Avoids creating new rectangles in parent method
 
         super(ImageDragTagger, self).handle_mouse_release(event)
 
-# =======
-#
-#         :param files:
-#         :param key_to_dir:
-#         :param aspect_ratio: width/height
-#         :param margin:
-#         :return:
-#         '''
-#         super(ImageDragTagger, self).__init__(files,key_to_dir)
-#
-#         self.pct_margin = 0.25  # 16px out of 64x128 in the original HOG paper
-#
-#         self.aspect_ratio = float(self.sizes[0][0])/float(self.sizes[0][1])
-#         self.is_sizing_rect = False
-#
-#     def handle_mouse_press(self, event):
-#         if event.button == 1:
-#             clicked_rect = self.get_rect_at(event.xdata, event.ydata)
-#             if clicked_rect:
-#                 self.rect_being_dragged = clicked_rect
-#             else:
-#                 self.is_sizing_rect = True
-# #                self.sizing_circle = mpatches.Circle(event.xdata, event.ydata, 0.1, ec="none")
-#                 ep = 1
-#                 # Or fancy patch box?
-#                 self.x0, self.y0 = event.xdata, event.ydata  # Where the drag was started
-#                 self.sizing_line = mlines.Line2D(self.x0 + np.array([0, ep]), self.y0 + np.array([0, ep]), lw=4)
-#                 self.rect_being_created = mpatches.Rectangle((self.x0, self.y0), ep, ep, **self.rect_options)
-#                 self.rects.append(self.rect_being_created)  # As its being made, it can be removed or changed category=
-#                 self.ax.add_patch(self.rect_being_created)
-#                 pyplot.draw()
-#
-#     def handle_mouse_motion(self, event):
-#         print event
-#         x_mouse, y_mouse = event.xdata, event.ydata
-#         if x_mouse is None or y_mouse is None:
-#             print 'event.xdata or event.ydata is None!'
-#             return
-#         if self.is_sizing_rect == True:
-#             h = y_mouse - self.y0
-#             w = int(np.abs(h)*self.aspect_ratio)
-#
-#             self.rect_being_created.set_x(self.x0 - w/2)  # Recenter the top
-#             self.rect_being_created.set_width(w)
-#             self.rect_being_created.set_height(h)
-#             pyplot.draw()
-#         else:
-#             super(ImageDragTagger, self).handle_mouse_motion(event)
-#
-#     def handle_mouse_release(self, event):
-#         # Don't create new rectangles on click
-#         if self.is_sizing_rect:
-#             self.is_sizing_rect = False
-#         else:
-#             super(ImageDragTagger, self).handle_mouse_release(event)
-#
-# >>>>>>> Stashed changes
     def save_rectangles(self):
-        # Cut them out, then scale them
-        pass
+        super(ImageDragTagger, self).save_rectangles()  # Saves the unscaled rectangle
+
 
 if __name__ == '__main__':
     dirs = sys.argv[1].split(',')

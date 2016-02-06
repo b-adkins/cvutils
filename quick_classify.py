@@ -145,6 +145,13 @@ class ImageTagger(ImageClassifier):
         self.rect_colors = {}  # Matplotlib Patch has no "get_color()"; thus must be tracked separately
         self.color_to_dir = {color: dir for dir, color in zip(self.key_to_dir.values(), self.colors)}
 
+        self.DONE_DIR = 'tagged'
+        if not os.path.exists(self.DONE_DIR):
+            os.mkdir(self.DONE_DIR)
+        elif os.path.isfile(self.DONE_DIR):
+            raise ValueError('Directory for tagged files cannot be created because of existing regular file. Pick a new '
+                             'name.')
+
     def get_rect_at(self, x, y):
         '''
         Gets a rectangle at the given (x, y)
@@ -192,7 +199,10 @@ class ImageTagger(ImageClassifier):
         self.ax.set_title('Saved {}'.format(outfiles))
 
     def clear_rectangles(self):
-        os.rename(self.current_file, os.path.join('tagged', self.current_file))  # Mark tagged or skipped files "done"
+        try:
+            os.rename(self.current_file, os.path.join(self.DONE_DIR, self.current_file))  # Mark tagged or skipped files "done"
+        except OSError:
+            print "Couldn't move image to completed folder."
 
         self.rect_colors = {}
         for i in range(len(self.rects))[::-1]:
@@ -208,6 +218,9 @@ class ImageTagger(ImageClassifier):
             self.save_rectangles()
             self.next_image()
         elif event.key in [' ', 'pagedown']:
+            self.next_image()
+        elif event.key == 'delete':
+            self.delete_image()
             self.next_image()
 
     def handle_mouse_press(self, event):
@@ -308,6 +321,15 @@ class ImageDragTagger(ImageTagger):
         self.aspect_ratio = float(self.sizes[0][0])/float(self.sizes[0][1])
         self.is_sizing_rect = False
 
+        self.ep = 1
+
+    def create_sizing_aid(self):
+        self.sizing_line = mlines.Line2D(self.x0 + np.array([0, self.ep]), self.y0 + np.array([0, self.ep]), lw=4,
+                                         color=self.colors[0])
+        self.sizing_circle = mpatches.Circle((self.x0, self.y0), self.ep, **self.rect_options)
+        self.ax.add_patch(self.sizing_circle)
+        self.ax.add_line(self.sizing_line)
+
     def handle_mouse_press(self, event):
         if event.button == 1:
             clicked_rect = self.get_rect_at(event.xdata, event.ydata)
@@ -315,21 +337,16 @@ class ImageDragTagger(ImageTagger):
                 self.rect_being_dragged = clicked_rect
             else:
                 self.is_sizing_rect = True
-#                self.sizing_circle = mpatches.Circle(event.xdata, event.ydata, 0.1, ec="none")
-                ep = 1
-                # Or fancy patch box?
+
                 self.x0, self.y0 = event.xdata, event.ydata  # Where the drag was started
                 self.rect_corner = (self.x0, self.y0)  # Offset the rectangle slightly
-                self.sizing_line = mlines.Line2D(self.x0 + np.array([0, ep]), self.y0 + np.array([0, ep]), lw=4,
-                                                 color=self.colors[0])
-                self.sizing_circle = mpatches.Circle((self.x0, self.y0), ep, **self.rect_options)
-                self.rect_being_created = mpatches.Rectangle((self.x0, self.y0), ep, ep, **self.rect_options)
+                self.rect_being_created = mpatches.Rectangle((self.x0, self.y0), self.ep, self.ep, **self.rect_options)
                 self.rect_colors[self.rect_being_created] = self.colors[0]
-
                 self.rects.append(self.rect_being_created)  # As its being made, it can be removed or changed category=
                 self.ax.add_patch(self.rect_being_created)
-                self.ax.add_patch(self.sizing_circle)
-                self.ax.add_line(self.sizing_line)
+
+                self.create_sizing_aid()
+
                 pyplot.draw()
 
     def handle_mouse_motion(self, event):
@@ -339,7 +356,7 @@ class ImageDragTagger(ImageTagger):
             print 'event.xdata or event.ydata is None!'
             return
         if self.is_sizing_rect == True:
-            h = y_mouse - self.y0
+            h = (y_mouse - self.y0)/(1 - self.pct_margin[1])
             w = int(np.abs(h)*self.aspect_ratio)
 
             # Scale the margin and circle
@@ -354,7 +371,7 @@ class ImageDragTagger(ImageTagger):
             self.rect_being_created.set_height(h)
             self.sizing_circle.center = self.x0, self.y0 + r
             self.sizing_circle.set_radius(r)
-            self.sizing_line.set_ydata([self.y0 + 2*r, y_mouse - 2*m_h])
+            self.sizing_line.set_ydata([self.y0 + 2*r, y_mouse - m_h])
             pyplot.draw()
         else:
             super(ImageDragTagger, self).handle_mouse_motion(event)

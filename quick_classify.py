@@ -318,11 +318,13 @@ class ImageDragTagger(ImageTagger):
                 # Or fancy patch box?
                 self.x0, self.y0 = event.xdata, event.ydata  # Where the drag was started
                 self.rect_corner = (self.x0, self.y0)  # Offset the rectangle slightly
-                # self.sizing_line = mlines.Line2D(self.x0 + np.array([0, ep]), self.y0 + np.array([0, ep]), lw=4)
+                self.sizing_line = mlines.Line2D(self.x0 + np.array([0, ep]), self.y0 + np.array([0, ep]), lw=4)
+                self.sizing_circle = mpatches.Circle((self.x0, self.y0), ep, **self.rect_options)
                 self.rect_being_created = mpatches.Rectangle((self.x0, self.y0), ep, ep, **self.rect_options)
                 self.rects.append(self.rect_being_created)  # As its being made, it can be removed or changed category=
                 self.ax.add_patch(self.rect_being_created)
-                # self.ax.add_patch(self.sizing_line)
+                self.ax.add_patch(self.sizing_circle)
+                self.ax.add_line(self.sizing_line)
                 pyplot.draw()
 
     def handle_mouse_motion(self, event):
@@ -338,18 +340,20 @@ class ImageDragTagger(ImageTagger):
             self.rect_being_created.set_x(self.x0 - w/2)  # Recenter the top
             self.rect_being_created.set_width(w)
             self.rect_being_created.set_height(h)
+            self.sizing_circle.set_radius(w * self.pct_margin / 2)
+            self.sizing_line.set_ydata([self.y0, y_mouse])
             pyplot.draw()
         else:
             super(ImageDragTagger, self).handle_mouse_motion(event)
 
     def handle_mouse_release(self, event):
         if event.button == 1:
-
             if self.is_sizing_rect:
                 self.is_sizing_rect = False
-#                self.sizing_line.remove()
+                self.sizing_line.remove()
+                self.sizing_circle.remove()
                 pyplot.draw()
-            return  # Avoid creating new rectangles on click
+            return  # Avoids creating new rectangles in parent method
 
         super(ImageDragTagger, self).handle_mouse_release(event)
 

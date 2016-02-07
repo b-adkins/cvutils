@@ -393,12 +393,25 @@ class ImageDragTagger(ImageTagger):
 
 
 if __name__ == '__main__':
-    dirs = sys.argv[1].split(',')
-    keys = ['right', 'left', 'up', 'down']
+    '''
+    USAGE:
+      SCRIPT_NAME APP DIRS [FILES]
+
+      APP - drag, tap, or whole:
+        whole - classify entire images with a few keypresses
+        tap - click to create a fixed sized window
+        drag - drag a fixed aspect ratio window
+      DIRS - comma-seperated output directories, one for each classification.
+        Will be created if they don't exist.
+      FILES - if given, work on these files. If not, searches current working directory.
+    '''
+    app = sys.argv[1]  # Git style - classify drag, classify tap, classify whole
+    dirs = sys.argv[2].split(',')
+    keys = ['right', 'left', 'up', 'down', 'x', 'y', 'z']
     key_to_dir = collections.OrderedDict({})
     for key, dir in zip(keys, dirs):
         key_to_dir[key] = dir
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 3:
         files = sys.argv[2:]
     else:
         files = [f for f in os.listdir(os.getcwd()) if os.path.isfile(f)]
@@ -418,6 +431,11 @@ if __name__ == '__main__':
     print
     # raw_input('Hit enter to continue')
 
-    gui = ImageDragTagger(files, key_to_dir)
+    if app == 'drag':
+        gui = ImageDragTagger(files, key_to_dir)
+    elif app == 'tap':
+        gui = ImageTagger(files, key_to_dir)
+    elif app == 'whole':
+        gui = ImageClassifier(files, key_to_dir)
 
     pyplot.show()
